@@ -67,7 +67,7 @@ module "rds_user_management_lambda_role" {
   postfix               = false
   principal_type        = "Service"
   principal_identifiers = ["lambda.amazonaws.com"]
-  role_policy           = data.aws_iam_policy_document.rds_password_rotation_lambda_policy.json
+  role_policy           = data.aws_iam_policy_document.rds_user_management_lambda_policy.json
   tags                  = var.tags
 }
 
