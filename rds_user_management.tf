@@ -40,6 +40,16 @@ data "aws_iam_policy_document" "rds_user_management_lambda_policy" {
 
   statement {
     actions = [
+      "secretsmanager:ListSecrets",
+    ]
+
+    resources = [
+      "*"
+    ]
+  }
+
+  statement {
+    actions = [
       "secretsmanager:GetRandomPassword",
     ]
 
