@@ -29,20 +29,25 @@ def main(event, context):
 
         print ('ITEMS:')
         print(len(secretlist))
+    
+        # whats next:
+        # 1: Create a loop to go trough all secrets. 
+        # 2: Connnect to endpoint
+        #    2.1: First try to connect with default IAM account. If this works proceed to step 3
+        #    2.2: Try to load secret for master account. 
+        #    2.3: Connect with this master account.
+        #    2.4: Create default IAM account with permissions te create users. 
+        #    2.5: Connect again with this IAM account
+        # 3: Check if the account exists, if not create this account. 
+        # 4: Next step is to be able to specify permissions on global and database level. We will need to think about how to configure this
         
-        #print(response)
-        #print('jahoooor')
-        #response = sm_client.list_all(max_results=100)
-        #print('listdalll')
-        #for x in response:
-        #    print(x)
-        #test = list(response)
-        #print(test)
-
-
-        # First get all RDS instances in this account
-        #rds = boto3.client('rds')
-
+        count=0
+        for secret in secretlist:
+            count +=1
+            print('secret number: %s' % count)
+            print(secret)
+        
+        
         print('end')
         
         return {
@@ -52,6 +57,67 @@ def main(event, context):
 
     except BaseException as err:
         print(f"Unexpected {err=}, {type(err)=}")
+
+
+class Aurora:
+    def get_connection(endpoint, port, iam_user, user):
+        
+        try:
+            
+            # initiate boto3 RDS
+            rds = boto3.client('rds')
+            
+            # Generate IAM token for default account sbp_admin
+            token = rds.generate_db_auth_token(DBHostname=endpoint,
+                                               Port=port,
+                                               DBUsername=iam_user)
+            
+            # Connect to MySQL
+            try:
+    
+                connection = connector.connect(host=endpoint,
+                                               user=iam_user,
+                                               password=token,
+                                               port=port,
+                                               ssl_ca="rds-ca-2019-root.pem")
+                
+                print('Connection successfully with IAM user')
+                
+                return connection
+                
+            except BaseException as err:
+                
+                print('Connection failed while using the IAM user!')
+                print(err)
+            
+                # In this case the sbp_admin_iam user is not working. Lets try to create it by using the default sbp_admin account
+                    
+                # What should be the default secret manager (friendly) name
+                friendlyName = 'db-pass-' + endpoint.split('.')[0]
+                
+                # For now (TODO)
+                friendlyName = 'db-pass-default'
+                
+                # Initiate secretsmanager
+                secm = boto3.client('secretsmanager', region_name='eu-west-1')
+    
+                # Get Value from SecretManager
+                secret = secm.get_secret_value(SecretId=friendlyName)
+        
+                connection = connector.connect(host=endpoint,
+                                               user=user,
+                                               password=secret['SecretString'])
+                
+                print('Connection created with default admin account!')
+                
+                
+                rds_create_user(connection=connection,
+                                username='sbp_admin_iam')
+                
+                return connection
+                    
+        except BaseException as err:
+            print(f"Unexpected {err=}, {type(err)=}")
 
 class SecretsManagerSecret:
     """Encapsulates Secrets Manager functions."""
