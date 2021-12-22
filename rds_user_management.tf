@@ -68,6 +68,16 @@ data "aws_iam_policy_document" "rds_user_management_lambda_policy" {
       "arn:aws:rds:*:*:*:*"
     ]
   }
+
+  statement {
+    actions = [
+       "rds-db:connect",
+    ]
+
+    resources = [
+      "arn:aws:rds-db:*:dbuser:*/*"
+    ]
+  }
 }
 
 module "rds_user_management_lambda_role" {

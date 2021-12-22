@@ -19,6 +19,8 @@ def main(event, context):
         # - Make Secretsmanager class
         # iam_user='ccv_admin_iam',  should by fully configurable
         # user="ccv_admin" should be fully configurable
+        # secretName = "db_master_secret_rds_sandbox_jho" should be fully configurable
+        # rds_aurora.rds_create_user(connection_master easier/nicer way to use functions between classes?
         
         # initiate boto3 for SecretsManager and RDS
         client = boto3.client('secretsmanager')
@@ -55,15 +57,14 @@ def main(event, context):
             # Retrieve the secret value of the specific Secret.
             response  = client.get_secret_value(SecretId=secret['ARN'])
             db_secret = json.loads(response['SecretString'])
-            
-            print(db_secret['host'])
 
             # Get a connection with the RDS instance
             conn = db.get_connection(endpoint=db_secret['host'], 
                                      port=db_secret['port'], 
                                      iam_user="ccv_admin_iam", 
                                      user="ccv_admin", 
-                                     rds=rdsb3)
+                                     rds=rdsb3,
+                                     rds_aurora=db)
         
         return {
             'statusCode': 200,
@@ -75,17 +76,48 @@ def main(event, context):
 
 
 class Aurora:
-    def get_connection(self, endpoint, port, iam_user, user, rds):
+    
+    def rds_create_user(self, connection, username):
         
         try:
+            print ('create MySQL user:' + username)
             
-            print('get_connection')
+            cursor = connection.cursor(prepared=True)
+            
+            # Temporary drop this user
+            #sql = "DROP USER sbp_admin_iam@'%';"
+            #cursor.execute(sql)
+            
+            # Create a new user
+            sql = "CREATE USER " + username + " IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS'"
+            cursor.execute(sql)
+            
+            # Granting this user to be able to create other users
+            sql = "grant create user on *.* to " + username + " with grant option;"
+            cursor.execute(sql)
+            
+            # Grant select on Mysql tables
+            sql = "grant select on *.* to " + username + " with grant option;"
+            cursor.execute(sql)
+            
+            sql = "flush privileges;"
+            cursor.execute(sql)
+            
+            print('privileges flushed!')
+            
+        except BaseException as err:
+            print(f"Unexpected {err=}, {type(err)=}")
+
+    def get_connection(self, endpoint, port, iam_user, user, rds, rds_aurora):
+        
+        try:
             
             # Generate IAM token for default account sbp_admin
             token = rds.generate_db_auth_token(DBHostname=endpoint,
                                                Port=port,
                                                DBUsername=iam_user)
             
+            print(token)
             print('IAM token generated')
             
             # Connect to MySQL
@@ -105,12 +137,28 @@ class Aurora:
                 
             except BaseException as err:
             
-                print('Connection failed while using the IAM user!')
                 print(err)
-        
+                print('Connection failed while using the IAM user!')
+                print('Try to connect with default master user')
+                
+                secretName = "db_master_secret_rds_sandbox_jho"
+                secm       = boto3.client('secretsmanager')
+                secret     = secm.get_secret_value(SecretId=secretName)
+                db_secret  = json.loads(secret['SecretString'])
+                
+                connection_master = connector.connect(host=endpoint,
+                                                      user=db_secret['username'],
+                                                      password=db_secret['password'],
+                                                      port=port)
+                                               
+                print('Connected with MySQL database')
+                result = rds_aurora.rds_create_user(connection_master,
+                                                    iam_user)
+                                                    
+                print('User: %s created' % iam_user)
+                
         except BaseException as err:
             
-            print('Connection failed while using the IAM user!')
             print(err)
         
             # In this case the sbp_admin_iam user is not working. Lets try to create it by using the default sbp_admin account
