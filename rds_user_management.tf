@@ -17,6 +17,11 @@ module "rds_user_management_lambda" {
   timeout       = 60
   tags          = var.tags
 
+  environment = {
+    MASTER_USERNAME = var.env_master_username,
+    SECRET_NAME     = var.env_secret_name
+  }
+
   providers = {
     aws.lambda = aws
   }
