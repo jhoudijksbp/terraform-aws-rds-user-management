@@ -1,3 +1,4 @@
+import os
 import argparse
 import base64
 import json
@@ -15,6 +16,8 @@ def main(event, context):
     
     try:
 
+        master_username = os.environ['master_username']
+        print(f"Master username: {master_username}")
         # TODO: 
         # - Make Secretsmanager class
         # iam_user='ccv_admin_iam',  should by fully configurable
