@@ -20,6 +20,11 @@ variable "env_secret_name" {
   description = "Secret in which the master user is saved"
 }
 
+variable "kms_key_id" {
+  type        = string
+  description = "ID of KMS key used for secrets"
+}
+
 variable "subnet_ids" {
   type        = list(string)
   description = "List of subnet IDs to deploy Lambda in"

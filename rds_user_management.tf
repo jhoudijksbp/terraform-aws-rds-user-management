@@ -45,6 +45,18 @@ data "aws_iam_policy_document" "rds_user_management_lambda_policy" {
 
   statement {
     actions = [
+      "kms:Decrypt",
+      "kms:GenerateDataKey",
+    ]
+
+    resources = [
+      "arn:aws:kms:*:*:key/${var.kms_key_id}"
+    ]
+  }
+
+
+  statement {
+    actions = [
       "secretsmanager:ListSecrets",
     ]
 
