@@ -9,12 +9,16 @@ import sys
 from aurora import Aurora
 from botocore.exceptions import ClientError
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
 DEFAULT_SECRET_TYPE = "RDS"
 
 def main(event, context):
     
     try:
+        
+        logger.info("Start managing RDS Aurora users")
         
         # Environment variables
         master_username = os.environ['MASTER_USERNAME']
@@ -31,6 +35,8 @@ def main(event, context):
         response = client.list_secrets(Filters=[{"Key": "tag-value", "Values": [DEFAULT_SECRET_TYPE]}])
         secretlist = response['SecretList']
         
+        logger.info("All secrets listed!")
+        
         # Save all available secrets in a list.
         while "NextToken" in response:
             response = client.list_secrets(NextToken=response['NextToken'])
@@ -38,32 +44,39 @@ def main(event, context):
         
         # Loop over all secrets and try to manage al these secrets/users
         for secret in secretlist:
-
-            # Retrieve the secret value of the specific Secret.
-            response  = client.get_secret_value(SecretId=secret['ARN'])
-            db_secret = json.loads(response['SecretString'])
-
-            # Populate default IAM user which will be used by this Lambda
-            master_iam_user = (f"{master_username}_iam")
-
-            # Get a connection with the RDS instance
-            conn = db.get_connection(endpoint=db_secret['host'], 
-                                     port=db_secret['port'], 
-                                     iam_user=master_iam_user, 
-                                     user=master_username, 
-                                     rds=rdsb3,
-                                     rds_aurora=db)
             
-            # With this connection we can create the user if it not exists and see if the user has all the correct permissions.
-            resp = db.rds_manage_user(conn, db_secret)
-            
-            # Close the database connection
-            db.close_connection(conn)
+            try:
+
+                # Retrieve the secret value of the specific Secret.
+                response  = client.get_secret_value(SecretId=secret['ARN'])
+                db_secret = json.loads(response['SecretString'])
+                
+                logger.info(f"secret value loaded for: {db_secret['username']}")
+    
+                # Populate default IAM user which will be used by this Lambda
+                master_iam_user = (f"{master_username}_iam")
+    
+                # Get a connection with the RDS instance
+                conn = db.get_connection(endpoint=db_secret['host'], 
+                                         port=db_secret['port'], 
+                                         iam_user=master_iam_user, 
+                                         user=master_username, 
+                                         rds=rdsb3,
+                                         rds_aurora=db)
+                
+                # With this connection we can create the user if it not exists and see if the user has all the correct permissions.
+                resp = db.rds_manage_user(conn, db_secret)
+                
+                # Close the database connection
+                db.close_connection(conn)
+
+            except BaseException as err:
+                logger.error(f"Error managing user: {db_secret['username']}. Error: {err}")
         
         return {
             'statusCode': 200,
-            'body': json.dumps('Hello from Lambda!')
+            'body': json.dumps('Lambda successfully executed!')
         }
 
     except BaseException as err:
-        print(f"Unexpected {err=}, {type(err)=}")
+        logger.error(f"Unexpected {err=}, {type(err)=}")
