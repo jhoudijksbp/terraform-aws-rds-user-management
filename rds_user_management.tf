@@ -27,7 +27,7 @@ module "rds_user_management_lambda" {
   }
 }
 
-data "aws_lambda_invocation" "example" {
+data "aws_lambda_invocation" "rds_user_management_lambda" {
   function_name = module.rds_user_management_lambda.name
 
   input = <<JSON
