@@ -238,7 +238,6 @@ class Aurora:
         cursor = conn.cursor()
         cursor.execute(sql, data)
         
-        logger.info('query is exceuted')
         result = cursor.fetchone()
 
         # Query should deliver data otherwise something is wrong
