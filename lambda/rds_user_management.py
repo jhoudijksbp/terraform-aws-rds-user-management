@@ -8,6 +8,7 @@ import boto3
 import sys
 from aurora import Aurora
 from botocore.exceptions import ClientError
+from secrets_manager import SecretsManagerSecret
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -25,9 +26,10 @@ def main(event, context):
         master_secret   = os.environ['SECRET_NAME'] 
 
         # initiate boto3 for SecretsManager and RDS
-        client = boto3.client('secretsmanager')
-        rdsb3  = boto3.client('rds')
-        
+        client                 = boto3.client('secretsmanager')
+        rdsb3                  = boto3.client('rds')
+        secrets_manager        = SecretsManagerSecret(client)
+    
         # Load classes
         db = Aurora()
         
@@ -48,8 +50,9 @@ def main(event, context):
             try:
 
                 # Retrieve the secret value of the specific Secret.
-                response  = client.get_secret_value(SecretId=secret['ARN'])
-                db_secret = json.loads(response['SecretString'])
+                response             = client.get_secret_value(SecretId=secret['ARN'])
+                db_secret            = json.loads(response['SecretString'])
+                secrets_manager.name = response['Name']
                 
                 logger.info(f"secret value loaded for: {db_secret['username']}")
     
@@ -65,8 +68,19 @@ def main(event, context):
                                          rds_aurora=db)
                 
                 # With this connection we can create the user if it not exists and see if the user has all the correct permissions.
-                resp = db.rds_manage_user(conn, db_secret)
+                passwd = db.rds_manage_user(conn, db_secret)
                 
+                # Check if another password is generated and save it to the secret
+                if db_secret['password'] != passwd:
+                    
+                    logger.info('A new password is generated: We need to save a new version of the secret')
+                    db_secret['password'] = passwd
+                    secret                = json.dumps(db_secret)
+                    
+                    # Save value in Secretsmanager
+                    secrets_manager.put_value(secret_value=secret)
+                    logger.info('Secret saved with new password!')
+                    
                 # Close the database connection
                 db.close_connection(conn)
 
