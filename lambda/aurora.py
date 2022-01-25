@@ -29,35 +29,35 @@ class Aurora:
                 passwd = self.generate_password()
             
             # Try to create a user
-            #result = self.rds_create_user(conn=connection,
-            #                              username=secret['username'],
-            #                              password=passwd,
-            #                              usertype=secret['authentication'],
-            #                              src_host=secret['src_host'])
+            result = self.rds_create_user(conn=connection,
+                                          username=secret['username'],
+                                          password=passwd,
+                                          usertype=secret['authentication'],
+                                          src_host=secret['src_host'])
             
         # Check server permissions 
-        #if "global" in secret['privileges']:
-        #    logger.info(f"Global permissions configured for user: {secret['username']}")
-        #    
-        #    self.rds_check_global_permissions(conn=connection,
-        #                                      username=secret['username'],
-        #                                      privs=secret['privileges']['global']['privileges'],
-        #                                      src_host=secret['src_host'])
-        #    
-        #    logger.info(f"Global permissions done for user: {secret['username']}")
-        #else:
-        #    logger.info(f"No Global permissions configured")
+        if "global" in secret['privileges']:
+            logger.info(f"Global permissions configured for user: {secret['username']}")
+            
+            self.rds_check_global_permissions(conn=connection,
+                                              username=secret['username'],
+                                              privs=secret['privileges']['global']['privileges'],
+                                              src_host=secret['src_host'])
+            
+            logger.info(f"Global permissions done for user: {secret['username']}")
+        else:
+            logger.info(f"No Global permissions configured")
             
             
         # Check database permissions
-        #logger.info(f"Checking configured database permissions for: {secret['username']}")
-        #
-        #self.rds_check_database_permissions(conn=connection,
-        #                                    username=secret['username'],
-        #                                    privs=secret['privileges'],
-        #                                    src_host=secret['src_host'])
+        logger.info(f"Checking configured database permissions for: {secret['username']}")
+        
+        self.rds_check_database_permissions(conn=connection,
+                                            username=secret['username'],
+                                            privs=secret['privileges'],
+                                            src_host=secret['src_host'])
                                   
-        #logger.info(f"Database permissions done for user: {secret['username']}")
+        logger.info(f"Database permissions done for user: {secret['username']}")
         
         return passwd
     
