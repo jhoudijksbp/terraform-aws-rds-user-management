@@ -36,6 +36,8 @@ data "aws_lambda_invocation" "rds_user_management_lambda" {
   "key2": "value2"
 }
 JSON
+
+  depends_on = [module.rds_user_management_lambda]
 }
 
 data "aws_iam_policy_document" "rds_user_management_lambda_policy" {
