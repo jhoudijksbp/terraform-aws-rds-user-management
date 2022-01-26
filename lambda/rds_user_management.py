@@ -73,6 +73,10 @@ def main(event, context):
                 # Check if another password is generated and save it to the secret
                 if db_secret['password'] != passwd:
                     
+                    # Set password on IAM for IAM users
+                    if db_secret['authentication'] == "IAM":
+                        passwd = 'IAM'
+                    
                     logger.info('A new password is generated: We need to save a new version of the secret')
                     db_secret['password'] = passwd
                     secret                = json.dumps(db_secret)
