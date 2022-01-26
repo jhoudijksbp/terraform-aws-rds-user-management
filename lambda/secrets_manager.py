@@ -135,9 +135,7 @@ class SecretsManagerSecret:
         :param stages: The stages to associate with the secret.
         :return: Metadata about the secret.
         """
-        logger.info('put_value')
         if self.name is None:
-            logger.info('jahoooooor')
             raise ValueError
 
         try:
