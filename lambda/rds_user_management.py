@@ -67,6 +67,11 @@ def main(event, context):
                                          rds=rdsb3,
                                          rds_aurora=db)
                 
+                # If a drop attribtue is in the secret we will drop the user
+                if "drop" in db_secret:
+                    db.rds_drop_user(connection=conn, username=db_secret['username'])
+                    logger.info(f"User: {db_secret['username']} dropped")
+                
                 # With this connection we can create the user if it not exists and see if the user has all the correct permissions.
                 passwd = db.rds_manage_user(conn, db_secret)
                 
@@ -98,3 +103,7 @@ def main(event, context):
 
     except BaseException as err:
         logger.error(f"Unexpected {err=}, {type(err)=}")
+        return {
+            'statusCode': 500,
+            'body': json.dumps('Error in Lambda please check logs')
+        }
