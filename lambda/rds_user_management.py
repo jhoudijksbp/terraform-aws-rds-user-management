@@ -7,6 +7,7 @@ import time
 import boto3
 import sys
 from aurora import Aurora
+from urllib2 import build_opener, HTTPHandler, Request
 from botocore.exceptions import ClientError
 from secrets_manager import SecretsManagerSecret
 
