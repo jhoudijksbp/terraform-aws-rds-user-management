@@ -8,10 +8,10 @@ import string
 from mysql import connector
 from mysql.connector import Error
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-class Aurora:
+class Aurora():
     def rds_manage_user(self, connection, secret):
         
         passwd = secret['password']
@@ -380,7 +380,7 @@ class Aurora:
                                                port=port,
                                                ssl_ca="rds-ca-2019-root.pem")
                 
-                logger.info('Connection successfully with IAM user')
+                #logger.info('Connection successfully with IAM user')
                 
                 return connection
                 

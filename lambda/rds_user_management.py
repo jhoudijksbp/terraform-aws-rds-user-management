@@ -10,7 +10,7 @@ from aurora import Aurora
 from botocore.exceptions import ClientError
 from secrets_manager import SecretsManagerSecret
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 DEFAULT_SECRET_TYPE = "RDS"
@@ -19,6 +19,10 @@ def main(event, context):
     
     try:
         
+        responseStatus = "SUCCESS"
+        responseData   = {"value":"", "Error":""}
+        
+        logger.info(event)
         logger.info("Start managing RDS Aurora users")
         
         # Environment variables
@@ -96,6 +100,9 @@ def main(event, context):
             except BaseException as err:
                 logger.error(f"Error managing user: {db_secret['username']}. Error: {err}")
         
+        # Send response to signed URL
+        sendResponse(event, context, responseStatus, responseData)
+        
         return {
             'statusCode': 200,
             'body': json.dumps('Lambda successfully executed!')
@@ -103,7 +110,36 @@ def main(event, context):
 
     except BaseException as err:
         logger.error(f"Unexpected {err=}, {type(err)=}")
+        
+        # Send Response to seigned
+        responseData['Error']=err
+        sendResponse(event, context, responseStatus, responseData)
+        
         return {
             'statusCode': 500,
             'body': json.dumps('Error in Lambda please check logs')
         }
+
+# Send the response to a signed url endpoint.
+def sendResponse(event, context, responseStatus, responseData):
+  responseBody = json.dumps({
+    "Status": responseStatus,
+    "Reason": "See the details in CloudWatch Log Stream: " + context.log_stream_name,
+    "PhysicalResourceId": context.log_stream_name,
+    "StackId": event['StackId'],
+    "RequestId": event['RequestId'],
+    "LogicalResourceId": event['LogicalResourceId'],
+    "Data": responseData
+  })
+
+  print('ResponseURL: {}'.format(event['ResponseURL']))
+  print('ResponseBody: {}'.format(responseBody))
+
+  opener = build_opener(HTTPHandler)
+  request = Request(event['ResponseURL'], data=responseBody)
+  request.add_header('Content-Type', '')
+  request.add_header('Content-Length', len(responseBody))
+  request.get_method = lambda: 'PUT'
+  response = opener.open(request)
+  print("Status code: {}".format(response.getcode()))
+  print("Status message: {}".format(response.msg))

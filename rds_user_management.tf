@@ -27,17 +27,20 @@ module "rds_user_management_lambda" {
   }
 }
 
-data "aws_lambda_invocation" "rds_user_management_lambda" {
-  function_name = module.rds_user_management_lambda.name
+module "lambda-exec" {
+  source               = "connect-group/lambda-exec/aws"
+  version             = "2.0.0"
+  name                = module.rds_user_management_lambda.name
+  lambda_function_arn = "${module.rds_user_management_lambda.arn}"
 
-  input = <<JSON
-{
-  "key1": "value1",
-  "key2": "value2"
-}
-JSON
+  lambda_inputs = {
+    run_on_every_apply = "${timestamp()}"
+  }
 
-  depends_on = [module.rds_user_management_lambda]
+  lambda_outputs = [
+    "value",
+    "Error"
+  ]
 }
 
 data "aws_iam_policy_document" "rds_user_management_lambda_policy" {
