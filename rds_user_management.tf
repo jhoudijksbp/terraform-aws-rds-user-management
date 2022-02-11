@@ -30,7 +30,7 @@ module "rds_user_management_lambda" {
 module "lambda-exec" {
   source               = "connect-group/lambda-exec/aws"
   version             = "2.0.0"
-  name                = "rds-user-management-lambda-exec"
+  name                = "rds-user-management-lambda"
   lambda_function_arn = "${module.rds_user_management_lambda.arn}"
 
   lambda_inputs = {

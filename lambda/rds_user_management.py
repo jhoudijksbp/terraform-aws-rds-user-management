@@ -7,7 +7,7 @@ import time
 import boto3
 import sys
 from aurora import Aurora
-from urllib2 import build_opener, HTTPHandler, Request
+import urllib.request
 from botocore.exceptions import ClientError
 from secrets_manager import SecretsManagerSecret
 
@@ -136,8 +136,8 @@ def sendResponse(event, context, responseStatus, responseData):
   print('ResponseURL: {}'.format(event['ResponseURL']))
   print('ResponseBody: {}'.format(responseBody))
 
-  opener = build_opener(HTTPHandler)
-  request = Request(event['ResponseURL'], data=responseBody)
+  opener = urllib.request.build_opener(HTTPHandler)
+  request = urllib.request.Request(event['ResponseURL'], data=responseBody)
   request.add_header('Content-Type', '')
   request.add_header('Content-Length', len(responseBody))
   request.get_method = lambda: 'PUT'
