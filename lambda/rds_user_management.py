@@ -123,7 +123,7 @@ def main(event, context):
 
 # Send the response to a signed url endpoint.
 def sendResponse(event, context, responseStatus, responseData):
-  responseBody = json.dumps({
+  responseBody = {
     "Status": responseStatus,
     "Reason": "See the details in CloudWatch Log Stream: " + context.log_stream_name,
     "PhysicalResourceId": context.log_stream_name,
@@ -131,16 +131,14 @@ def sendResponse(event, context, responseStatus, responseData):
     "RequestId": event['RequestId'],
     "LogicalResourceId": event['LogicalResourceId'],
     "Data": responseData
-  })
+  }
 
-  print('ResponseURL: {}'.format(event['ResponseURL']))
-  print('ResponseBody: {}'.format(responseBody))
-
-  opener = urllib.request.build_opener(urllib.request.HTTPHandler)
-  request = urllib.request.Request(event['ResponseURL'], data=responseBody)
-  request.add_header('Content-Type', '')
-  request.add_header('Content-Length', len(responseBody))
-  request.get_method = lambda: 'PUT'
-  response = opener.open(request)
-  print("Status code: {}".format(response.getcode()))
-  print("Status message: {}".format(response.msg))
+  logger.info('ResponseURL: {}'.format(event['ResponseURL']))
+  
+  data = json.dumps(responseBody).encode('utf-8')
+  req  = urllib.request.Request(event['ResponseURL'], data, headers={'Content-Length': len(data), 'Content-Type': ''})
+  req.get_method = lambda: 'PUT'
+  response = urllib.request.urlopen(req) 
+  logger.info(f'response.status: {response.status}, ' + f'response.reason: {response.reason}')
+  logger.info('response from cfn: ' + response.read().decode('utf-8'))
+ 
