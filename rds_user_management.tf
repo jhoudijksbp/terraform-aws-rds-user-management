@@ -41,6 +41,8 @@ module "lambda-exec" {
     "value",
     "Error"
   ]
+
+  depends_on = [module.rds_user_management_lambda]
 }
 
 data "aws_iam_policy_document" "rds_user_management_lambda_policy" {
