@@ -136,7 +136,7 @@ def sendResponse(event, context, responseStatus, responseData):
   print('ResponseURL: {}'.format(event['ResponseURL']))
   print('ResponseBody: {}'.format(responseBody))
 
-  opener = urllib.request.build_opener(HTTPHandler)
+  opener = urllib.request.build_opener(urllib.request.HTTPHandler)
   request = urllib.request.Request(event['ResponseURL'], data=responseBody)
   request.add_header('Content-Type', '')
   request.add_header('Content-Length', len(responseBody))
