@@ -21,7 +21,7 @@ def main(event, context):
     try:
         
         responseStatus = "SUCCESS"
-        responseData   = {"value":"", "Error":""}
+        responseData   = {"Value":"", "Error":""}
         
         logger.info(event)
         logger.info("Start managing RDS Aurora users")

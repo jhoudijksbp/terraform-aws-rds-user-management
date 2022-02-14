@@ -38,7 +38,7 @@ module "lambda-exec" {
   }
 
   lambda_outputs = [
-    "value",
+    "Value",
     "Error"
   ]
 
