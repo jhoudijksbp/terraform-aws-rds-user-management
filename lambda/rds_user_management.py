@@ -58,58 +58,52 @@ def main(event, context):
         
         # Loop over all secrets and try to manage al these secrets/users
         for secret in secretlist:
+
+            # Retrieve the secret value of the specific Secret.
+            response             = client.get_secret_value(SecretId=secret['ARN'])
+            db_secret            = json.loads(response['SecretString'])
+            secrets_manager.name = response['Name']
             
-            try:
+            logger.info(f"secret value loaded for: {db_secret['username']}")
 
-                # Retrieve the secret value of the specific Secret.
-                response             = client.get_secret_value(SecretId=secret['ARN'])
-                db_secret            = json.loads(response['SecretString'])
-                secrets_manager.name = response['Name']
-                
-                logger.info(f"secret value loaded for: {db_secret['username']}")
-    
-                # Populate default IAM user which will be used by this Lambda
-                master_iam_user = (f"{master_username}_iam")
-    
-                # Get a connection with the RDS instance
-                conn = db.get_connection(endpoint=db_secret['host'], 
-                                         port=db_secret['port'], 
-                                         iam_user=master_iam_user, 
-                                         user=master_username, 
-                                         rds=rdsb3,
-                                         rds_aurora=db)
-                
-                # If a drop attribtue is in the secret we will drop the user
-                if "drop" in db_secret:
-                    db.rds_drop_user(connection=conn, username=db_secret['username'])
-                    logger.info(f"User: {db_secret['username']} dropped")
-                
-                # With this connection we can create the user if it not exists and see if the user has all the correct permissions.
-                passwd = db.rds_manage_user(conn, db_secret)
-                
-                # Check if another password is generated and save it to the secret
-                if db_secret['password'] != passwd:
-                    
-                    # Set password on IAM for IAM users
-                    if db_secret['authentication'] == "IAM":
-                        passwd = 'IAM'
-                    
-                    logger.info('A new password is generated: We need to save a new version of the secret')
-                    db_secret['password'] = passwd
-                    secret                = json.dumps(db_secret)
-                    
-                    # Save value in Secretsmanager
-                    secrets_manager.put_value(secret_value=secret)
-                    logger.info('Secret saved with new password!')
-                    
-                # Close the database connection
-                db.close_connection(conn)
+            # Populate default IAM user which will be used by this Lambda
+            master_iam_user = (f"{master_username}_iam")
 
-            except BaseException as err:
-                logger.error(f"Error managing user: {db_secret['username']}. Error: {err}")
+            # Get a connection with the RDS instance
+            conn = db.get_connection(endpoint=db_secret['host'], 
+                                        port=db_secret['port'], 
+                                        iam_user=master_iam_user, 
+                                        user=master_username, 
+                                        rds=rdsb3,
+                                        rds_aurora=db)
+            
+            # If a drop attribtue is in the secret we will drop the user
+            if "drop" in db_secret:
+                db.rds_drop_user(connection=conn, username=db_secret['username'])
+                logger.info(f"User: {db_secret['username']} dropped")
+            
+            # With this connection we can create the user if it not exists and see if the user has all the correct permissions.
+            passwd = db.rds_manage_user(conn, db_secret)
+            
+            # Check if another password is generated and save it to the secret
+            if db_secret['password'] != passwd:
+                
+                # Set password on IAM for IAM users
+                if db_secret['authentication'] == "IAM":
+                    passwd = 'IAM'
+                
+                logger.info('A new password is generated: We need to save a new version of the secret')
+                db_secret['password'] = passwd
+                secret                = json.dumps(db_secret)
+                
+                # Save value in Secretsmanager
+                secrets_manager.put_value(secret_value=secret)
+                logger.info('Secret saved with new password!')
+                
+            # Close the database connection
+            db.close_connection(conn)                
         
         # Send response to signed URL
-        raise Exception('Unknown database privileges specified')
         responseData['Value']="User management Lambda successfully executed!"
         sendResponse(event, context, responseStatus, responseData)
         
@@ -151,15 +145,12 @@ def sendResponse(event, context, responseStatus, responseData):
   }
   
   logger.info(responseBody)
-
   logger.info('ResponseURL: {}'.format(event['ResponseURL']))
   
   data = json.dumps(responseBody).encode('utf-8')
   
-  logger.info('deze snap je toch niet')
   req  = urllib.request.Request(event['ResponseURL'], data, headers={'Content-Length': len(data), 'Content-Type': ''})
   req.get_method = lambda: 'PUT'
   response = urllib.request.urlopen(req) 
   logger.info(f'response.status: {response.status}, ' + f'response.reason: {response.reason}')
-  logger.info('response from cfn: ' + response.read().decode('utf-8'))
  

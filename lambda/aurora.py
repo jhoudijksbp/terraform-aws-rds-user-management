@@ -94,7 +94,7 @@ class Aurora():
             
             # Check if configured permissions are in the set of available privileges
             if set(privs[key]['privileges']).issubset(available_privileges) == False:
-                raise Exception('Unknown database privileges specified')
+                raise Exception(f"Unknown database privileges specified for user: {username}")
             
             # Convert privileges which should be granted to column names in MySQL
             priv_cols = [s.capitalize() + "_priv" for s in privs[key]['privileges']]
@@ -206,7 +206,7 @@ class Aurora():
         
         # Check if configured privileges are existing privileges.
         if set(privs).issubset(available_privileges) == False:
-            raise Exception('Unknown global privileges specified')
+            raise Exception(f"Unknown global privileges specified for user: {username}")
             
         # Convert privileges which should be granted to column names in MySQL
         priv_cols = [s.capitalize() + "_priv" for s in privs]
@@ -242,7 +242,7 @@ class Aurora():
 
         # Query should deliver data otherwise something is wrong
         if result is None:
-            raise Exception('No user found while checking global permissions!')
+            raise Exception(f"User: {username} not found while checking global permissions!")
     
         # Create a dictionary of the row with column_names
         row    = dict(zip(cursor.column_names, result))
