@@ -29,7 +29,7 @@ def main(event, context):
         if event['RequestType'] == 'Update' or event['RequestType'] == 'Delete':
             sendResponse(event, context, responseStatus, responseData)
             return
-
+        
         logger.info(event)
         logger.info("Start managing RDS Aurora users")
         
