@@ -23,9 +23,10 @@ def main(event, context):
         responseStatus = "SUCCESS"
         responseData   = {"Value":"", "Error":""}
         
+        logger.info(f"RequestType: {event['RequestType']}")
+
         # Only send a response to Cloudformation when the RequestType is Update or Delete
-        if event['RequestType'] == 'Update' or event['RequestType'] == 'Update':
-            logger.info(f"RequuestType of type: {event['RequestType']} only sending response to Cloudformation")
+        if event['RequestType'] == 'Update' or event['RequestType'] == 'Delete':
             sendResponse(event, context, responseStatus, responseData)
             return
 
