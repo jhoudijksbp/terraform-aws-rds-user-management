@@ -102,6 +102,7 @@ def main(event, context):
                 logger.error(f"Error managing user: {db_secret['username']}. Error: {err}")
         
         # Send response to signed URL
+        raise Exception('Unknown database privileges specified')
         responseData['Value']="User management Lambda successfully executed!"
         sendResponse(event, context, responseStatus, responseData)
         
