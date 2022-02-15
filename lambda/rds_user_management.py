@@ -114,8 +114,10 @@ def main(event, context):
     except BaseException as err:
         logger.error(f"Unexpected {err=}, {type(err)=}")
         
-        # Send Response to seigned
-        responseData['Error']=err
+        # Send Response to signed URL
+        responseData['Error'] = str(err)
+        responseData['Value'] = "User management Lambda FAILED!"
+        responseStatus        = "FAILED"
         sendResponse(event, context, responseStatus, responseData)
         
         return {
