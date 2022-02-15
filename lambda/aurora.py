@@ -277,12 +277,6 @@ class Aurora():
         
         return
         
-    #def rds_execute_query(self, connection, query):
-    #
-    #    
-    #
-    #    return
-    #     
     def rds_user_exists(self, connection, username):
         
         exists = False
@@ -379,8 +373,6 @@ class Aurora():
                                                password=token,
                                                port=port,
                                                ssl_ca="rds-ca-2019-root.pem")
-                
-                #logger.info('Connection successfully with IAM user')
                 
                 return connection
                 
