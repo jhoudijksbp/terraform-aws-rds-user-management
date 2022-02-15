@@ -23,6 +23,10 @@ def main(event, context):
         responseStatus = "SUCCESS"
         responseData   = {"Value":"", "Error":""}
         
+        # Only send a response to Cloudformation when the RequestType is Update or Delete
+        if event['RequestType'] == 'Update' or event['RequestType'] == 'Update':
+            sendResponse(event, context, responseStatus, responseData)
+
         logger.info(event)
         logger.info("Start managing RDS Aurora users")
         
