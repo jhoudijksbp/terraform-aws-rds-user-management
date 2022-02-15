@@ -114,10 +114,11 @@ def main(event, context):
     except BaseException as err:
         logger.error(f"Unexpected {err=}, {type(err)=}")
         
-        # Send Response to signed URL
+        # Send Response to seigned
         responseData['Error'] = str(err)
         responseData['Value'] = "User management Lambda FAILED!"
         responseStatus        = "FAILED"
+        
         sendResponse(event, context, responseStatus, responseData)
         
         return {
@@ -127,19 +128,28 @@ def main(event, context):
 
 # Send the response to a signed url endpoint.
 def sendResponse(event, context, responseStatus, responseData):
+  
+  reason = "See the details in CloudWatch Log Stream: " + context.log_stream_name
+  if responseStatus == "FAILED":
+      reason = f"Error: {responseData['Error']} see more info in Cloudwatch: {context.log_stream_name}"
+  
   responseBody = {
     "Status": responseStatus,
-    "Reason": "See the details in CloudWatch Log Stream: " + context.log_stream_name,
+    "Reason": reason,
     "PhysicalResourceId": context.log_stream_name,
     "StackId": event['StackId'],
     "RequestId": event['RequestId'],
     "LogicalResourceId": event['LogicalResourceId'],
     "Data": responseData
   }
+  
+  logger.info(responseBody)
 
   logger.info('ResponseURL: {}'.format(event['ResponseURL']))
   
   data = json.dumps(responseBody).encode('utf-8')
+  
+  logger.info('deze snap je toch niet')
   req  = urllib.request.Request(event['ResponseURL'], data, headers={'Content-Length': len(data), 'Content-Type': ''})
   req.get_method = lambda: 'PUT'
   response = urllib.request.urlopen(req) 
