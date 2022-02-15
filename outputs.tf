@@ -8,6 +8,11 @@ output "name" {
   description = "Name of the Lambda"
 }
 
+output "role_arn" {
+  value       = module.rds_user_management_lambda_role.arn
+  description = "ARN of the role of the Lambda"
+}
+
 output "security_group_id" {
   value       = module.rds_user_management_lambda.security_group_id
   description = "Lambda Security Group ID"
