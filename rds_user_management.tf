@@ -27,20 +27,42 @@ module "rds_user_management_lambda" {
   }
 }
 
-module "lambda-exec" {
-  source               = "connect-group/lambda-exec/aws"
-  version             = "2.0.0"
-  name                = "rds-user-management-lambda"
-  lambda_function_arn = "${module.rds_user_management_lambda.arn}"
+resource "aws_cloudformation_stack" "execute_lambda_user_management" {
+  name               = "rds-user-management-lambda"
+  timeout_in_minutes = 5
+  tags               = var.tags
 
-  lambda_inputs = {
-    run_on_every_apply = "${timestamp()}"
+  template_body = <<EOF
+{
+  "Description" : "Execute a Lambda and return the results",
+  "Resources": {
+    "ExecuteLambda": {
+      "Type": "Custom::ExecuteLambda",
+      "Properties": 
+        ${jsonencode(
+  merge(
+    {
+      "ServiceToken" = module.rds_user_management_lambda.arn
+    },
+    {
+      "run_on_every_apply" = "${timestamp()}"
+    },
+  ),
+  )}
+    }
+  },
+  "Outputs": {
+    ${join(
+  ",",
+  formatlist(
+    "\"%s\":{\"Value\": {\"Fn::GetAtt\":[\"ExecuteLambda\", \"%s\"]}}",
+    ["Value", "Error"],
+    ["Value", "Error"],
+  ),
+)}
   }
-
-  lambda_outputs = [
-    "Value",
-    "Error"
-  ]
+}
+EOF
 
   depends_on = [module.rds_user_management_lambda]
 }
