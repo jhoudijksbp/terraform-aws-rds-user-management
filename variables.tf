@@ -10,6 +10,12 @@ variable "create_vpc_secm_endpoint" {
   description = "Create a VPC endpoint for SSM"
 }
 
+variable "deploy_password_rotation" {
+  type        = bool
+  default     = false
+  description = "Deploy the Password rotation module"
+}
+
 variable "env_master_username" {
   type        = string
   description = "Default master username of RDS instances"
@@ -23,6 +29,12 @@ variable "env_secret_name" {
 variable "kms_key_id" {
   type        = string
   description = "ID of KMS key used for secrets"
+}
+
+variable "sql_users" {
+  type        = map(string)
+  default     = {}
+  description = "List of SQL users which should be managed"
 }
 
 variable "subnet_ids" {
