@@ -63,8 +63,6 @@ resource "aws_cloudformation_stack" "execute_lambda_user_management" {
   }
 }
 EOF
-
-  depends_on = [module.rds_user_management_lambda]
 }
 
 data "aws_iam_policy_document" "rds_user_management_lambda_policy" {
