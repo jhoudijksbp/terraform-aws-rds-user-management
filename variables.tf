@@ -32,7 +32,7 @@ variable "kms_key_id" {
 }
 
 variable "sql_users" {
-  type        = map(string)
+  type        = list(object)
   description = "List of SQL users which should be managed"
 }
 
