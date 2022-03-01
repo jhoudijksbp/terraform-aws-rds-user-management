@@ -12,6 +12,7 @@ locals {
   }])
 }
 
+# Create a secret for the user
 resource "aws_secretsmanager_secret" "db_user" {
   for_each   = var.sql_users
   name       = "db_user_${each.key}"
@@ -19,6 +20,15 @@ resource "aws_secretsmanager_secret" "db_user" {
   tags       = merge(var.tags, { "SECRET_TYPE" = "RDS" })
 }
 
+# Create a separate user for the user privileges
+resource "aws_secretsmanager_secret" "db_user_privs" {
+  for_each   = var.sql_users
+  name       = "db_user_privs_${each.key}"
+  kms_key_id = var.kms_key_id
+  tags       = merge(var.tags, { "SECRET_TYPE" = "RDS_PRIVS" })
+}
+
+# Create a secret version for the user credentials
 resource "aws_secretsmanager_secret_version" "db_user_secret_version" {
   for_each  = { for user in local.sql_users_map : user.username => user }
   secret_id = aws_secretsmanager_secret.db_user[each.value.username].id
@@ -30,7 +40,6 @@ resource "aws_secretsmanager_secret_version" "db_user_secret_version" {
     host                 = each.value.rds_endpoint,
     password             = "will_get_generated_later",
     port                 = each.value.rds_port,
-    privileges           = each.value.privileges,
     src_host             = each.value.src_host,
     username             = each.value.username
   })
@@ -40,6 +49,23 @@ resource "aws_secretsmanager_secret_version" "db_user_secret_version" {
       secret_string
     ]
   }
+}
+
+# Create a secret version for the user privileges
+resource "aws_secretsmanager_secret_version" "db_user_privs_secret_version" {
+  for_each  = { for user in local.sql_users_map : user.username => user }
+  secret_id = aws_secretsmanager_secret.db_user_privs[each.value.username].id
+
+  secret_string = jsonencode({
+    authentication       = each.value.authentication,
+    dbInstanceIdentifier = each.value.rds_cluster_identifier,
+    engine               = "mysql",
+    host                 = each.value.rds_endpoint,
+    port                 = each.value.rds_port,
+    privileges           = each.value.privileges,
+    src_host             = each.value.src_host,
+    username             = each.value.username
+  })
 }
 
 #resource "aws_secretsmanager_secret_rotation" "db_user_secret_rotation" {
