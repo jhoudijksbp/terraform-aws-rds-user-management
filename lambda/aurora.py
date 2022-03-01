@@ -136,16 +136,16 @@ class Aurora():
                 
                 row = dict(zip(cursor.column_names, result))
                 
-                for key, value in row.items():
+                for item, value in row.items():
                     
                     # So if the value is 1 we need to change something in current set of permissions
                     if value == 0:
                         
                         # Check if we need to grant or revoke
-                        if key in priv_cols:
-                            grants.append(key.replace('_priv','').upper())
+                        if item in priv_cols:
+                            grants.append(item.replace('_priv','').upper())
                         else:
-                            revokes.append(key.replace('_priv','').upper())
+                            revokes.append(item.replace('_priv','').upper())
                 
                 # Generate revoke statement
                 if len(revokes) > 0:
@@ -157,7 +157,7 @@ class Aurora():
                     
                 # Generate grant statement
                 if len(grants) > 0:
-                    logger.info(f"GRANT permissions: {','.join(revokes)}")
+                    logger.info(f"GRANT permissions: {','.join(grants)}")
                     grant_stmt = f"GRANT {','.join(grants)} ON `{privs[key]['database']}`.* TO {username}@'{src_host}'"
                     logger.debug(grant_stmt)
                     cursor.execute(grant_stmt)
@@ -166,7 +166,7 @@ class Aurora():
             else:
                 logger.info(f"GRANT permissions: {','.join(privs[key]['privileges'])}")
                 grant_stmt = f"GRANT {','.join(privs[key]['privileges'])} ON `{privs[key]['database']}`.* TO {username}@'{src_host}'"
-                logger.debug(grant_stmt)
+                logger.info(grant_stmt)
                 cursor.execute(grant_stmt)
                 logger.info("GRANT done")
         

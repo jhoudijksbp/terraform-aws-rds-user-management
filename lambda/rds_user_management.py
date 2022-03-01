@@ -1,408 +1,169 @@
-import boto3
-import json
 import os
-import sys
+import argparse
+import base64
+import json
 import logging
-import secrets
-import string
-from mysql import connector
-from mysql.connector import Error
+import time
+import boto3
+import sys
+from aurora import Aurora
+import urllib.request
+from botocore.exceptions import ClientError
+from secrets_manager import SecretsManagerSecret
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-class Aurora():
-    def rds_manage_user(self, connection, secret):
-        
-        passwd = secret['password']
-        
-        # First check if user exists
-        logger.info(f"Check if user: {secret['username']} exists")
-        exists = self.rds_user_exists(connection, secret['username'])
-        logger.info(f"Result user exits: {exists}")
-        
-        # Create the user because it does not exist
-        if exists == False:
-            
-            # Generate a password if needed.
-            if passwd == "" or passwd == "will_get_generated_later":
-                passwd = self.generate_password()
-            
-            # Try to create a user
-            result = self.rds_create_user(conn=connection,
-                                          username=secret['username'],
-                                          password=passwd,
-                                          usertype=secret['authentication'],
-                                          src_host=secret['src_host'])
-            
-        # Check server permissions 
-        if "global" in secret['privileges']:
-            logger.info(f"Global permissions configured for user: {secret['username']}")
-            
-            self.rds_check_global_permissions(conn=connection,
-                                              username=secret['username'],
-                                              privs=secret['privileges']['global']['privileges'],
-                                              src_host=secret['src_host'])
-            
-            logger.info(f"Global permissions done for user: {secret['username']}")
-        else:
-            logger.info(f"No Global permissions configured")
-            
-            
-        # Check database permissions
-        logger.info(f"Checking configured database permissions for: {secret['username']}")
-        
-        self.rds_check_database_permissions(conn=connection,
-                                            username=secret['username'],
-                                            privs=secret['privileges'],
-                                            src_host=secret['src_host'])
-                                  
-        logger.info(f"Database permissions done for user: {secret['username']}")
-        
-        return passwd
-    
-    def generate_password(self):
-        alphabet = string.ascii_letters + string.digits + string.punctuation
-        password = ''.join(secrets.choice(alphabet) for i in range(20))
-        return password
-        
-    def rds_check_database_permissions(self, conn, username, privs, src_host):
-        
-        available_privileges = [
-            "ALTER",
-            "CREATE",
-            "CREATE_ROUTINE",
-            "CREATE_TMP_TABLE",
-            "CREATE_VIEW",
-            "DELETE",
-            "DROP",
-            "EXECUTE",
-            "INDEX",
-            "INSERT",
-            "LOCK_TABLES",
-            "SELECT",
-            "SHOW_VIEW",
-            "TRIGGER",
-            "UPDATE"
-            ]
-        
-        for key in privs:
-            
-            # Skip global permissions
-            if key == 'global':
-                continue
-            
-            # Check if configured permissions are in the set of available privileges
-            if set(privs[key]['privileges']).issubset(available_privileges) == False:
-                raise Exception(f"Unknown database privileges specified for user: {username}")
-            
-            # Convert privileges which should be granted to column names in MySQL
-            priv_cols = [s.capitalize() + "_priv" for s in privs[key]['privileges']]
-    
-            # Create select query for getting global privileges
-            all_cols = [s.capitalize() + "_priv" for s in available_privileges]
-            all_columns = [s.capitalize() + "_priv," for s in available_privileges]
-            
-            query = "SELECT "
-            # Generate part of the query to check permissions
-            for col in all_cols:
-                if col in priv_cols:
-                    query = f"{query} CASE WHEN {col} = 'Y' THEN 1 ELSE 0 END AS {col},"
-                else:
-                    query = f"{query} CASE WHEN {col} = 'N' THEN 1 ELSE 0 END AS {col},"
-            
-            # remove last comma.        
-            query = query[:-1]
-            
-            all_cols    = "".join(all_columns)
-            all_cols    = all_cols[:-1]
-            sql         = f"""{query}
-                                FROM mysql.db
-                               WHERE User = %s
-                                 AND Host = %s
-                                 AND Db = %s"""
-                                 
-            # Execute the query
-            data   = (username, src_host, privs[key]['database'])
-            cursor = conn.cursor()
-            cursor.execute(sql, data)
-            
-            # Generate REVOKE and GRANT statements
-            grant   = False
-            grants  = []
-            revokes = []
-            result = cursor.fetchone()
-            if result:
-                
-                row = dict(zip(cursor.column_names, result))
-                
-                for item, value in row.items():
-                    
-                    # So if the value is 1 we need to change something in current set of permissions
-                    if value == 0:
-                        
-                        # Check if we need to grant or revoke
-                        if item in priv_cols:
-                            grants.append(item.replace('_priv','').upper())
-                        else:
-                            revokes.append(item.replace('_priv','').upper())
-                
-                # Generate revoke statement
-                if len(revokes) > 0:
-                    logger.info(f"REVOKE permissions: {','.join(revokes)}")
-                    revoke_stmt = f"REVOKE {','.join(revokes)} ON `{privs[key]['database']}`.* TO {username}@'{src_host}'"
-                    logger.debug(revoke_stmt)
-                    cursor.execute(revoke_stmt)
-                    logger.info(f"REVOKE done")
-                    
-                # Generate grant statement
-                if len(grants) > 0:
-                    logger.info(f"GRANT permissions: {','.join(grants)}")
-                    grant_stmt = f"GRANT {','.join(grants)} ON `{privs[key]['database']}`.* TO {username}@'{src_host}'"
-                    logger.debug(grant_stmt)
-                    cursor.execute(grant_stmt)
-                    logger.info("GRANT done")
-                
-            else:
-                logger.info(f"GRANT permissions: {','.join(privs[key]['privileges'])}")
-                grant_stmt = f"GRANT {','.join(privs[key]['privileges'])} ON `{privs[key]['database']}`.* TO {username}@'{src_host}'"
-                logger.info(grant_stmt)
-                cursor.execute(grant_stmt)
-                logger.info("GRANT done")
-        
-            
-        
-        return
-    
-    def rds_check_global_permissions(self, conn, username, privs, src_host):
-        
-        # List of al Aurora/MySQL available global privileges
-        available_privileges = [
-            "ALTER",
-            "ALTER_ROUTINE",
-            "CREATE",
-            "CREATE_ROUTINE",
-            "CREATE_TMP_TABLE",
-            "CREATE_USER",
-            "CREATE_VIEW",
-            "DELETE",
-            "DROP",
-            "EXECUTE",
-            "FILE",
-            "INDEX",
-            "INSERT",
-            "LOCK_TABLES",
-            "PROCESS",
-            "REFERENCES",
-            "RELOAD",
-            "SELECT",
-            "SHOW_DB",
-            "SHOW_VIEW",
-            "SHUTDOWN",
-            "SUPER",
-            "TRIGGER",
-            "UPDATE"
-            ]
-        
-        # Check if configured privileges are existing privileges.
-        if set(privs).issubset(available_privileges) == False:
-            raise Exception(f"Unknown global privileges specified for user: {username}")
-            
-        # Convert privileges which should be granted to column names in MySQL
-        priv_cols = [s.capitalize() + "_priv" for s in privs]
+DEFAULT_SECRET_TYPE       = "RDS"
 
-        # Create select query for getting global privileges
-        all_cols = [s.capitalize() + "_priv" for s in available_privileges]
-        all_columns = [s.capitalize() + "_priv," for s in available_privileges]
-        
-        query = "SELECT "
-        # Generate part of the query to check permissions
-        for col in all_cols:
-            if col in priv_cols:
-                query = f"{query} CASE WHEN {col} = 'Y' THEN 1 ELSE 0 END AS {col},"
-            else:
-                query = f"{query} CASE WHEN {col} = 'N' THEN 1 ELSE 0 END AS {col},"
-        
-        # remove last comma.        
-        query = query[:-1]
-        
-        all_cols    = "".join(all_columns)
-        all_cols    = all_cols[:-1]
-        sql         = f"""{query}
-                            FROM mysql.user
-                           WHERE User = %s
-                             AND Host = %s"""
-                             
-        # Execute the query
-        data   = (username, src_host)
-        cursor = conn.cursor()
-        cursor.execute(sql, data)
-        
-        result = cursor.fetchone()
-
-        # Query should deliver data otherwise something is wrong
-        if result is None:
-            raise Exception(f"User: {username} not found while checking global permissions!")
+def main(event, context):
     
-        # Create a dictionary of the row with column_names
-        row    = dict(zip(cursor.column_names, result))
+    try:
         
-        # Generate REVOKE and GRANT statements
-        grants  = []
-        revokes = []
-        for key, value in row.items():
-            
-            # So if the value is 1 we need to change something in current set of permissions
-            if value == 0:
-                
-                # Check if we need to grant or revoke
-                if key in priv_cols:
-                    grants.append(key.replace('_priv','').upper())
-                else:
-                    revokes.append(key.replace('_priv','').upper())
+        responseStatus = "SUCCESS"
+        responseData   = {"Value":"", "Error":""}
         
-        # Generate revoke statement
-        if len(revokes) > 0:
-            logger.info(f"REVOKE permissions: {','.join(revokes)}")
-            revoke_stmt = f"REVOKE {','.join(revokes)} ON *.* TO {username}@'{src_host}'"
-            cursor.execute(revoke_stmt)
-            logger.info(f"REVOKE done")
-            
-        # Generate grant statement
-        if len(grants) > 0:
-            logger.info(f"GRANT permissions: {','.join(revokes)}")
-            grant_stmt = f"GRANT {','.join(grants)} ON *.* TO {username}@'{src_host}'"
-            logger.info(grant_stmt)
-            cursor.execute(grant_stmt)
-        
-        return
-        
-    def rds_user_exists(self, connection, username):
-        
-        exists = False
-        cursor = connection.cursor()
-        query  = "SELECT EXISTS(SELECT 1 FROM mysql.user WHERE user = %s) AS existing"
-        data   = (username, )
-        
-        # Execute the query
-        cursor.execute(query, data)
-        result = cursor.fetchone()
-        
-        if result[0] == 1:
-            exists = True
-        
-        return exists
-        
-    def rds_drop_user(self, connection, username):
-        
-        logger.info(f"drop MySQL user: {username}")
-        
-        cursor = connection.cursor(prepared=True)
-        
-        # Temporary drop this user
-        sql = f"DROP USER {username}@'%';"
-        cursor.execute(sql)
-        logger.info(f"User dropped: {username}")
-        
-    def rds_create_iam_user(self, connection, username):
-        
-        try:
-            logger.info(f"create MySQL user: {username}")
-            
-            cursor = connection.cursor(prepared=True)
-            sql    = f"CREATE USER {username} IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS'"
-            cursor.execute(sql)
-            
-            # Grant permissions to IAM_USER
-            sql = f"grant SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, RELOAD, PROCESS, REFERENCES, INDEX, ALTER, SHOW DATABASES, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, CREATE USER, EVENT, TRIGGER on *.* to {username} with grant option;"
-            cursor.execute(sql)
-    
-            sql = "flush privileges;"
-            cursor.execute(sql)
-            
-            logger.info('privileges flushed!')
-            
-        except BaseException as err:
-            print(f"Unexpected {err=}, {type(err)=}")
-            
-    def rds_create_user(self, conn, username, password, usertype, src_host):
-        
-        try:
-            logger.info(f"create MySQL user: {username}")
-            
-            cursor = conn.cursor(prepared=True)
-            
-            # Create a new user
-            if usertype == 'IAM':
-                sql = f"CREATE USER {username}@'{src_host}' IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS'"
-            else:
-                logger.info('create user based on credentials')
-                sql = f"CREATE USER {username}@'{src_host}' IDENTIFIED BY '{password}'"
-                
-            cursor.execute(sql)
-        
-            sql = "flush privileges;"
-            cursor.execute(sql)
-            
-            logger.info('privileges flushed!')
-            
-        except BaseException as err:
-            logger.error(f"Unexpected {err=}, {type(err)=}")
+        logger.info(f"RequestType: {event['RequestType']}")
 
-    def close_connection(self, connection):
-        connection.close()
-        
-    def get_connection(self, endpoint, port, iam_user, user, rds, rds_aurora):
-        
-        try:
-            
-            # Generate IAM token for default account sbp_admin
-            token = rds.generate_db_auth_token(DBHostname=endpoint,
-                                               Port=port,
-                                               DBUsername=iam_user)
-            
-            logger.info('IAM token generated')
-            
-            # Connect to MySQL
-            try:
-    
-                logger.info('Trying to connect with IAM user to RDS MySQL')
-                
-                connection = connector.connect(host=endpoint,
-                                               user=iam_user,
-                                               password=token,
-                                               port=port,
-                                               ssl_ca="rds-ca-2019-root.pem")
-                
-                return connection
-                
-            except BaseException as err:
-            
-                logger.info(err)
-                logger.info('Connection failed while using the IAM user!')
-                logger.info('Will try to connect with default master user')
-                
-                secretName = os.environ['SECRET_NAME'] 
-                secm       = boto3.client('secretsmanager')
-                secret     = secm.get_secret_value(SecretId=secretName)
-                db_secret  = json.loads(secret['SecretString'])
-                
-                connection_master = connector.connect(host=endpoint,
-                                                      user=db_secret['username'],
-                                                      password=db_secret['password'],
-                                                      port=port)
-                #print('drop user')                                      
-                #test = self.rds_drop_user(connection=connection_master, username=iam_user)
-                #print('user dropped...exiting now.')
-                #sys.exit(0)
-                                               
-                logger.info('Connected with MySQL database')
-                result = rds_aurora.rds_create_iam_user(connection_master, iam_user)
-                                                    
-                logger.info(f"User: {iam_user} created")
-                
-        except BaseException as err:
-            logger.error(err)
+        # Only send a response to Cloudformation when the RequestType is Update or Delete
+        if event['RequestType'] == 'Delete':
+            sendResponse(event, context, responseStatus, responseData)
+            return
 
-        except BaseException as err:
-            logger.error(f"Unexpected {err=}, {type(err)=}")
+        logger.info(event)
+        logger.info("Start managing RDS Aurora users")
+        
+        # Environment variables
+        master_username = os.environ['MASTER_USERNAME']
+        master_secret   = os.environ['SECRET_NAME'] 
+
+        # initiate boto3 for SecretsManager and RDS
+        client                 = boto3.client('secretsmanager')
+        rdsb3                  = boto3.client('rds')
+        secrets_manager        = SecretsManagerSecret(client)
+    
+        # Load classes
+        db = Aurora()
+        
+        logger.info("Start retrieving all secrets from Secretsmanager")
+        
+        # Only select secrets with a specific tag-value
+        responseCreds   = client.list_secrets(Filters=[{"Key": "tag-value", "Values": [DEFAULT_SECRET_TYPE]}])
+        secretlistCreds = responseCreds['SecretList']
+        
+        logger.info("All secrets listed!")
+        
+        # Save all available secrets in a list.
+        while "NextToken" in responseCreds:
+            responseCreds   = client.list_secrets(NextToken=responseCreds['NextToken'])
+            secretlistCreds = secretlistCreds + responseCreds['SecretList']
+        
+        # Loop over all secrets and try to manage al these secrets/users
+        for secret in secretlistCreds:
+
+            # Retrieve the secret value of the specific Secret.
+            response             = client.get_secret_value(SecretId=secret['ARN'])
+            db_secret            = json.loads(response['SecretString'])
+            secrets_manager.name = response['Name']
+            
+            logger.info(f"secretvalue successfully loaded: {response['Name']}")
+            
+            # Retrieve the secret value of the privileges secret
+            privName     = response['Name'].replace('db_user','db_user_privs',1)
+            responsePriv = client.get_secret_value(SecretId=privName)
+            db_privs    = json.loads(responsePriv['SecretString'])
+            
+            logger.info(f"secretvalue successfully loaded: {privName}")
+            
+            # Add privileges to the secret
+            db_secret['privileges'] = db_privs['privileges']
+            
+            # Populate default IAM user which will be used by this Lambda
+            master_iam_user = (f"{master_username}_iam")
+            
+            # Get a connection with the RDS instance
+            conn = db.get_connection(endpoint   = db_secret['host'], 
+                                     port       = db_secret['port'], 
+                                     iam_user   = master_iam_user, 
+                                     user       = master_username, 
+                                     rds        = rdsb3,
+                                     rds_aurora = db)
+            
+            # If a drop attribtue is in the secret we will drop the user
+            if "drop" in db_secret:
+                db.rds_drop_user(connection=conn, username=db_secret['username'])
+                logger.info(f"User: {db_secret['username']} dropped")
+            
+            # With this connection we can create the user if it not exists and see if the user has all the correct permissions.
+            passwd = db.rds_manage_user(conn, db_secret)
+            
+            # Check if another password is generated and save it to the secret
+            if db_secret['password'] != passwd:
+                
+                # Set password on IAM for IAM users
+                if db_secret['authentication'] == "IAM":
+                    passwd = 'IAM'
+                
+                logger.info('A new password is generated: We need to save a new version of the secret')
+                db_secret['password'] = passwd
+                db_secret.pop("privileges")
+                secret = json.dumps(db_secret)
+                
+                # Save value in Secretsmanager
+                secrets_manager.put_value(secret_value=secret)
+                logger.info('Secret saved with new password!')
+                
+            # Close the database connection
+            db.close_connection(conn) 
+        
+        # Send response to signed URL
+        responseData['Value']="User management Lambda successfully executed!"
+        sendResponse(event, context, responseStatus, responseData)
+        
+        return {
+            'statusCode': 200,
+            'body': json.dumps('Lambda successfully executed!')
+        }
+
+    except BaseException as err:
+        logger.error(f"Unexpected {err=}, {type(err)=}")
+        
+        # Send Response to seigned
+        responseData['Error'] = str(err)
+        responseData['Value'] = "User management Lambda FAILED!"
+        responseStatus        = "FAILED"
+        
+        sendResponse(event, context, responseStatus, responseData)
+        
+        return {
+            'statusCode': 500,
+            'body': json.dumps('Error in Lambda please check logs')
+        }
+
+# Send the response to a signed url endpoint.
+def sendResponse(event, context, responseStatus, responseData):
+  
+  reason = "See the details in CloudWatch Log Stream: " + context.log_stream_name
+  if responseStatus == "FAILED":
+      reason = f"Error: {responseData['Error']} see more info in Cloudwatch: {context.log_stream_name}"
+  
+  responseBody = {
+    "Status": responseStatus,
+    "Reason": reason,
+    "PhysicalResourceId": context.log_stream_name,
+    "StackId": event['StackId'],
+    "RequestId": event['RequestId'],
+    "LogicalResourceId": event['LogicalResourceId'],
+    "Data": responseData
+  }
+  
+  logger.info(responseBody)
+  logger.info('ResponseURL: {}'.format(event['ResponseURL']))
+  
+  data = json.dumps(responseBody).encode('utf-8')
+  
+  req  = urllib.request.Request(event['ResponseURL'], data, headers={'Content-Length': len(data), 'Content-Type': ''})
+  req.get_method = lambda: 'PUT'
+  response = urllib.request.urlopen(req) 
+  logger.info(f'response.status: {response.status}, ' + f'response.reason: {response.reason}')
+ 
