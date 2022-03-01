@@ -1,21 +1,3 @@
-
-# Deployment of the user management module
-#module "rds_user_management_lambda" {
-#  source                   = "github.com/jhoudijksbp/terraform-aws-rds-user-management"
-#  create_vpc_secm_endpoint = false
-#  create_vpc_rds_endpoint  = false
-#  env_master_username      = "ccv_admin"
-#  env_secret_name          = aws_secretsmanager_secret.db_master_secret_rds_sandbox_jho.name
-#  kms_key_id               = aws_kms_key.kms_key_rds_sandbox_jho.key_id
-#  sql_users                = local.sql_users
-#  subnet_ids               = module.jeffrey_vpc.private_subnets
-#  vpc_id                   = module.jeffrey_vpc.vpc_id
-
-#  providers = {
-#    aws = aws
-#  }
-#}
-
 locals {
   sql_users_map = flatten([
     for k, v in var.sql_users : {
