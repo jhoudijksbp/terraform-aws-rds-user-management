@@ -14,7 +14,7 @@ from secrets_manager import SecretsManagerSecret
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-DEFAULT_SECRET_TYPE = "RDS"
+DEFAULT_SECRET_TYPE       = "RDS"
 
 def main(event, context):
     
@@ -45,37 +45,49 @@ def main(event, context):
         # Load classes
         db = Aurora()
         
+        logger.info("Start retrieving all secrets from Secretsmanager")
+        
         # Only select secrets with a specific tag-value
-        response = client.list_secrets(Filters=[{"Key": "tag-value", "Values": [DEFAULT_SECRET_TYPE]}])
-        secretlist = response['SecretList']
+        responseCreds   = client.list_secrets(Filters=[{"Key": "tag-value", "Values": [DEFAULT_SECRET_TYPE]}])
+        secretlistCreds = responseCreds['SecretList']
         
         logger.info("All secrets listed!")
         
         # Save all available secrets in a list.
-        while "NextToken" in response:
-            response = client.list_secrets(NextToken=response['NextToken'])
-            secretlist = secretlist + response['SecretList']
+        while "NextToken" in responseCreds:
+            responseCreds   = client.list_secrets(NextToken=responseCreds['NextToken'])
+            secretlistCreds = secretlistCreds + responseCreds['SecretList']
         
         # Loop over all secrets and try to manage al these secrets/users
-        for secret in secretlist:
+        for secret in secretlistCreds:
 
             # Retrieve the secret value of the specific Secret.
             response             = client.get_secret_value(SecretId=secret['ARN'])
             db_secret            = json.loads(response['SecretString'])
             secrets_manager.name = response['Name']
             
-            logger.info(f"secret value loaded for: {db_secret['username']}")
-
+            logger.info(f"secretvalue successfully loaded: {response['Name']}")
+            
+            # Retrieve the secret value of the privileges secret
+            privName     = response['Name'].replace('db_user','db_user_privs',1)
+            responsePriv = client.get_secret_value(SecretId=privName)
+            db_privs    = json.loads(responsePriv['SecretString'])
+            
+            logger.info(f"secretvalue successfully loaded: {privName}")
+            
+            # Add privileges to the secret
+            db_secret['privileges'] = db_privs['privileges']
+            
             # Populate default IAM user which will be used by this Lambda
             master_iam_user = (f"{master_username}_iam")
-
+            
             # Get a connection with the RDS instance
-            conn = db.get_connection(endpoint=db_secret['host'], 
-                                        port=db_secret['port'], 
-                                        iam_user=master_iam_user, 
-                                        user=master_username, 
-                                        rds=rdsb3,
-                                        rds_aurora=db)
+            conn = db.get_connection(endpoint   = db_secret['host'], 
+                                     port       = db_secret['port'], 
+                                     iam_user   = master_iam_user, 
+                                     user       = master_username, 
+                                     rds        = rdsb3,
+                                     rds_aurora = db)
             
             # If a drop attribtue is in the secret we will drop the user
             if "drop" in db_secret:
@@ -94,14 +106,15 @@ def main(event, context):
                 
                 logger.info('A new password is generated: We need to save a new version of the secret')
                 db_secret['password'] = passwd
-                secret                = json.dumps(db_secret)
+                db_secret.pop("privileges")
+                secret = json.dumps(db_secret)
                 
                 # Save value in Secretsmanager
                 secrets_manager.put_value(secret_value=secret)
                 logger.info('Secret saved with new password!')
                 
             # Close the database connection
-            db.close_connection(conn)                
+            db.close_connection(conn) 
         
         # Send response to signed URL
         responseData['Value']="User management Lambda successfully executed!"

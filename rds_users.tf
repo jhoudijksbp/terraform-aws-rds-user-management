@@ -25,7 +25,7 @@ resource "aws_secretsmanager_secret" "db_user_privs" {
   for_each   = var.sql_users
   name       = "db_user_privs_${each.key}"
   kms_key_id = var.kms_key_id
-  tags       = merge(var.tags, { "SECRET_TYPE" = "RDS_PRIVS" })
+  tags       = merge(var.tags, { "SECRET_TYPE" = "PRIVS_RDS" })
 }
 
 # Create a secret version for the user credentials
@@ -77,3 +77,48 @@ resource "aws_secretsmanager_secret_version" "db_user_privs_secret_version" {
 #    automatically_after_days = 30
 #  }
 #}
+
+
+# Execute the Lambda
+resource "aws_cloudformation_stack" "execute_lambda_user_management" {
+    name               = "rds-user-management-lambda"
+    timeout_in_minutes = 5
+    tags               = var.tags
+  
+    template_body = <<EOF
+  {
+    "Description" : "Execute a Lambda and return the results",
+    "Resources": {
+      "ExecuteLambda": {
+        "Type": "Custom::ExecuteLambda",
+        "Properties": 
+          ${jsonencode(
+    merge(
+      {
+        "ServiceToken" = module.rds_user_management_lambda.arn
+      },
+      {
+        "run_on_every_apply" = "${timestamp()}"
+      },
+    ),
+    )}
+      }
+    },
+    "Outputs": {
+      ${join(
+    ",",
+    formatlist(
+      "\"%s\":{\"Value\": {\"Fn::GetAtt\":[\"ExecuteLambda\", \"%s\"]}}",
+      ["Value", "Error"],
+      ["Value", "Error"],
+    ),
+  )}
+    }
+  }
+  EOF
+
+  depends_on = [
+    aws_secretsmanager_secret_version.db_user_privs_secret_version,
+    aws_secretsmanager_secret_version.db_user_secret_version
+  ]
+}
