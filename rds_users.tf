@@ -119,6 +119,7 @@ resource "aws_cloudformation_stack" "execute_lambda_user_management" {
 
   depends_on = [
     aws_secretsmanager_secret_version.db_user_privs_secret_version,
-    aws_secretsmanager_secret_version.db_user_secret_version
+    aws_secretsmanager_secret_version.db_user_secret_version,
+    module.rds_user_management_lambda
   ]
 }
