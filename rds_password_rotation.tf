@@ -1,4 +1,4 @@
-module "rds_password_rotation_lambda" {
+module "rds_password_rotation" {
   count                    = "${var.deploy_password_rotation == true ? 1 : 0}"
   source                   = "app.terraform.io/ccv-group/rds-password-rotation/aws"
   kms_arns                 = [var.kms_key_id]
