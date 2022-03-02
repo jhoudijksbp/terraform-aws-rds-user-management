@@ -24,6 +24,7 @@ variable "env_master_username" {
 variable "env_secret_name" {
   type        = string
   description = "Secret in which the master user is saved"
+  sensitive   = true
 }
 
 variable "kms_key_id" {
