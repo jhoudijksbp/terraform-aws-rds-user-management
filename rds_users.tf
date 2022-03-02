@@ -70,8 +70,7 @@ resource "aws_secretsmanager_secret_version" "db_user_privs_secret_version" {
 
 # Enable password rotation for secrets which are configured for password rotation
 resource "aws_secretsmanager_secret_rotation" "db_user_secret_rotation" {
-  count               = "${var.deploy_password_rotation == true ? 1 : 0}"
-  for_each            = { for user in local.sql_users_map : user.username => user if user.rotation }
+  for_each            = { for user in local.sql_users_map : user.username => user if user.rotation && var.deploy_password_rotation }
   secret_id           = aws_secretsmanager_secret.db_user[each.value.username].id
   rotation_lambda_arn = module.rds_password_rotation_lambda.arn
 
