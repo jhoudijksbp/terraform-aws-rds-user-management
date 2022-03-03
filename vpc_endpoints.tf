@@ -26,7 +26,7 @@ resource "aws_security_group_rule" "vpc_endpoint_secrets_manager_sg_pwd_rule" {
   from_port                = 443
   protocol                 = "tcp"
   security_group_id        = aws_security_group.vpc_endpoint_secrets_manager_sg[0].id
-  source_security_group_id = module.rds_password_rotation.security_group_id
+  source_security_group_id = module.rds_password_rotation[0].security_group_id
   type                     = "ingress"
   to_port                  = 443
 }
