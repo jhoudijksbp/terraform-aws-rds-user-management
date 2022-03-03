@@ -19,7 +19,7 @@ resource "aws_security_group_rule" "vpc_endpoint_secrets_manager_sg_rule" {
   to_port                  = 443
 }
 
-resource "aws_security_group_rule" "vpc_endpoint_secrets_manager_sg_rule" {
+resource "aws_security_group_rule" "vpc_endpoint_secrets_manager_sg_pwd_rule" {
   count                    = "${var.create_vpc_secm_endpoint == true && deploy_password_rotation == true ? 1 : 0}"
 
   description              = "Allow Ingress traffic over port 443 to this endpoint"
