@@ -33,7 +33,7 @@ resource "aws_secretsmanager_secret" "db_user_privs" {
 
 # Create a secret version for the user credentials
 resource "aws_secretsmanager_secret_version" "db_user_secret_version" {
-  for_each  = { for user in local.sql_users_map : user.unique_name => user }
+  for_each  = { for user in local.sql_users_map : user.unique_name => user if user.master_user == false }
   secret_id = aws_secretsmanager_secret.db_user[each.value.unique_name].id
 
   secret_string = jsonencode({
@@ -56,7 +56,7 @@ resource "aws_secretsmanager_secret_version" "db_user_secret_version" {
 
 # Create a secret version for the user privileges
 resource "aws_secretsmanager_secret_version" "db_user_privs_secret_version" {
-  for_each  = { for user in local.sql_users_map : user.unique_name => user }
+  for_each  = { for user in local.sql_users_map : user.unique_name => user if user.master_user == false }
   secret_id = aws_secretsmanager_secret.db_user_privs[each.value.unique_name].id
 
   secret_string = jsonencode({
