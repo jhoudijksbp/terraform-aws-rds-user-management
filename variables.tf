@@ -37,6 +37,11 @@ variable "kms_key_id" {
   description = "ID of KMS key used for secrets"
 }
 
+variable "kms_key_arn" {
+  type        = string
+  description = "ARN of KMS key used for secrets"
+}
+
 variable "sql_users" {
   description = "List of SQL users which should be managed"
 }
