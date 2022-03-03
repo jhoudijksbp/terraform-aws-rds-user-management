@@ -2,6 +2,7 @@ locals {
   sql_users_map = flatten([
     for k, v in var.sql_users : {
       authentication         = try(v.authentication, "credentials")
+      password               = try(v.password, "will_get_generated_later")
       privileges             = try(v.grants, "")
       rds_cluster_identifier = v.rds_cluster_identifier
       rds_endpoint           = v.rds_endpoint
@@ -40,7 +41,7 @@ resource "aws_secretsmanager_secret_version" "db_user_secret_version" {
     dbInstanceIdentifier = each.value.rds_cluster_identifier,
     engine               = "mysql",
     host                 = each.value.rds_endpoint,
-    password             = "will_get_generated_later",
+    password             = each.value.password,
     port                 = each.value.rds_port,
     src_host             = each.value.src_host,
     username             = each.value.username
@@ -126,18 +127,6 @@ resource "aws_cloudformation_stack" "execute_lambda_user_management" {
   ]
 }
 
-# Random password generator for master users
-resource "random_password" "db_master_pass" {
-  for_each         = { for user in local.sql_users_map : user.unique_name => user if user.master_user }  
-  length           = 40
-  special          = true
-  min_special      = 5
-  override_special = "!#$%^&*()-_=+[]{}<>:?"
-  keepers = {
-    pass_version = 1
-  }
-}
-
 # Create a secret for Master users
 resource "aws_secretsmanager_secret" "db_master_user" {
   for_each   = { for user in local.sql_users_map : user.unique_name => user if user.master_user }
@@ -156,7 +145,7 @@ resource "aws_secretsmanager_secret_version" "db_master_user_secret_version" {
     dbInstanceIdentifier = each.value.rds_cluster_identifier,
     engine               = "mysql",
     host                 = each.value.rds_endpoint,
-    password             = random_password.db_master_pass[each.value.unique_name].result,
+    password             = each.value.password,
     port                 = each.value.rds_port,
     src_host             = each.value.src_host,
     username             = each.value.username
