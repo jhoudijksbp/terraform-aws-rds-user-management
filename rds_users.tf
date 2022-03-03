@@ -132,7 +132,7 @@ resource "aws_secretsmanager_secret" "db_master_user" {
   for_each   = { for user in local.sql_users_map : user.unique_name => user if user.master_user }
   name       = "db_master_user_${each.value.unique_name}"
   kms_key_id = var.kms_key_id
-  tags       = merge(var.tags, { "SECRET_TYPE" = "MASTER_RDS" })
+  tags       = merge(var.tags, { "SECRET_TYPE" = "MASTER_RDS", "CL_IDENTIFIER" = "${each.value.rds_cluster_identifier}" })
 }
 
 # Create a secret version for Master users 
