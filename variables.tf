@@ -1,3 +1,9 @@
+variable "create_kms_iam_policy" {
+  type        = bool
+  default     = false
+  description = "Create a IAM policy for permissions on KMS keys for password rotation Lambda"
+}
+
 variable "create_vpc_rds_endpoint" {
   type        = bool
   default     = false
