@@ -24,7 +24,7 @@ resource "aws_secretsmanager_secret" "db_user" {
 
 # Create a separate user for the user privileges
 resource "aws_secretsmanager_secret" "db_user_privs" {
-  for_each   = var.sql_users
+  for_each   = { for user in local.sql_users_map : user.unique_name => user if user.master_user == false }
   name       = "db_user_privs_${each.value.unique_name}"
   kms_key_id = var.kms_key_id
   tags       = merge(var.tags, { "SECRET_TYPE" = "PRIVS_RDS" })
