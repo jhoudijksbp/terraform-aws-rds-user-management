@@ -83,49 +83,49 @@ resource "aws_secretsmanager_secret_rotation" "db_user_secret_rotation" {
 }
 
 # Execute the usermanagement Lamba
-resource "aws_cloudformation_stack" "execute_lambda_user_management" {
-    name               = "rds-user-management-lambda"
-    timeout_in_minutes = 5
-    tags               = var.tags
-  
-    template_body = <<EOF
-  {
-    "Description" : "Execute a Lambda and return the results",
-    "Resources": {
-      "ExecuteLambda": {
-        "Type": "Custom::ExecuteLambda",
-        "Properties": 
-          ${jsonencode(
-    merge(
-      {
-        "ServiceToken" = module.rds_user_management_lambda.arn
-      },
-      {
-        "run_on_every_apply" = "${timestamp()}"
-      },
-    ),
-    )}
-      }
-    },
-    "Outputs": {
-      ${join(
-    ",",
-    formatlist(
-      "\"%s\":{\"Value\": {\"Fn::GetAtt\":[\"ExecuteLambda\", \"%s\"]}}",
-      ["Value", "Error"],
-      ["Value", "Error"],
-    ),
-  )}
-    }
-  }
-  EOF
-
-  depends_on = [
-    aws_secretsmanager_secret_version.db_user_privs_secret_version,
-    aws_secretsmanager_secret_version.db_user_secret_version,
-    module.rds_user_management_lambda
-  ]
-}
+#resource "aws_cloudformation_stack" "execute_lambda_user_management" {
+#    name               = "rds-user-management-lambda"
+#    timeout_in_minutes = 5
+#    tags               = var.tags
+#  
+#    template_body = <<EOF
+#  {
+#    "Description" : "Execute a Lambda and return the results",
+#    "Resources": {
+#      "ExecuteLambda": {
+#        "Type": "Custom::ExecuteLambda",
+#        "Properties": 
+#          ${jsonencode(
+#    merge(
+#      {
+#        "ServiceToken" = module.rds_user_management_lambda.arn
+#      },
+#      {
+#        "run_on_every_apply" = "${timestamp()}"
+#      },
+#    ),
+#    )}
+#      }
+#    },
+#    "Outputs": {
+#      ${join(
+#    ",",
+#    formatlist(
+#      "\"%s\":{\"Value\": {\"Fn::GetAtt\":[\"ExecuteLambda\", \"%s\"]}}",
+#      ["Value", "Error"],
+#      ["Value", "Error"],
+#    ),
+#  )}
+#    }
+#  }
+#  EOF
+#
+#  depends_on = [
+#    aws_secretsmanager_secret_version.db_user_privs_secret_version,
+#    aws_secretsmanager_secret_version.db_user_secret_version,
+#    module.rds_user_management_lambda
+#  ]
+#}
 
 # Create a secret for Master users
 resource "aws_secretsmanager_secret" "db_master_user" {
