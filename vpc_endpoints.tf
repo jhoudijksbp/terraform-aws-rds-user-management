@@ -19,6 +19,18 @@ resource "aws_security_group_rule" "vpc_endpoint_secrets_manager_sg_rule" {
   to_port                  = 443
 }
 
+resource "aws_security_group_rule" "vpc_endpoint_secrets_manager_sg_rule" {
+  count                    = "${var.create_vpc_secm_endpoint == true && deploy_password_rotation == true ? 1 : 0}"
+
+  description              = "Allow Ingress traffic over port 443 to this endpoint"
+  from_port                = 443
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.vpc_endpoint_secrets_manager_sg[0].id
+  source_security_group_id = module.rds_password_rotation.security_group_id
+  type                     = "ingress"
+  to_port                  = 443
+}
+
 resource "aws_vpc_endpoint" "vpc_endpoint_secrets_manager" {
   count               = "${var.create_vpc_secm_endpoint == true ? 1 : 0}"
 
