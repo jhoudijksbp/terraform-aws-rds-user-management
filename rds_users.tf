@@ -9,14 +9,15 @@ locals {
       rotation               = try(v.rotation, false)
       master_user            = try(v.master_user, false)
       src_host               = v.src_host
+      unique_name            = "${v.rds_cluster_identifier}_${k}"
       username               = k
   }])
 }
 
 # Create a secret for the user
 resource "aws_secretsmanager_secret" "db_user" {
-  for_each   = { for user in local.sql_users_map : "${user.rds_cluster_identifier}_${user.username}" => user if user.master_user == false }
-  name       = "db_user_${each.value.rds_cluster_identifier}_${each.value.username}"
+  for_each   = { for user in local.sql_users_map : user.unique_name => user if user.master_user == false }
+  name       = "db_user_${each.value.unique_name}"
   kms_key_id = var.kms_key_id
   tags       = merge(var.tags, { "SECRET_TYPE" = "RDS" })
 }
@@ -24,15 +25,15 @@ resource "aws_secretsmanager_secret" "db_user" {
 # Create a separate user for the user privileges
 resource "aws_secretsmanager_secret" "db_user_privs" {
   for_each   = var.sql_users
-  name       = "db_user_privs_${each.value.rds_cluster_identifier}_${each.value.username}"
+  name       = "db_user_privs_${each.value.unique_name}"
   kms_key_id = var.kms_key_id
   tags       = merge(var.tags, { "SECRET_TYPE" = "PRIVS_RDS" })
 }
 
 # Create a secret version for the user credentials
 resource "aws_secretsmanager_secret_version" "db_user_secret_version" {
-  for_each  = { for user in local.sql_users_map : user.username => user }
-  secret_id = aws_secretsmanager_secret.db_user[{"${user.rds_cluster_identifier}_${user.username}"}].id
+  for_each  = { for user in local.sql_users_map : user.unique_name => user }
+  secret_id = aws_secretsmanager_secret.db_user[each.value.unique_name].id
 
   secret_string = jsonencode({
     authentication       = each.value.authentication,
@@ -54,8 +55,8 @@ resource "aws_secretsmanager_secret_version" "db_user_secret_version" {
 
 # Create a secret version for the user privileges
 resource "aws_secretsmanager_secret_version" "db_user_privs_secret_version" {
-  for_each  = { for user in local.sql_users_map : user.username => user }
-  secret_id = aws_secretsmanager_secret.db_user_privs[{"${user.rds_cluster_identifier}_${user.username}"}].id
+  for_each  = { for user in local.sql_users_map : user.unique_name => user }
+  secret_id = aws_secretsmanager_secret.db_user_privs[each.value.unique_name].id
 
   secret_string = jsonencode({
     authentication       = each.value.authentication,
@@ -71,8 +72,8 @@ resource "aws_secretsmanager_secret_version" "db_user_privs_secret_version" {
 
 # Enable password rotation for secrets which are configured for password rotation
 resource "aws_secretsmanager_secret_rotation" "db_user_secret_rotation" {
-  for_each            = { for user in local.sql_users_map : user.username => user if user.rotation && var.deploy_password_rotation }
-  secret_id           = aws_secretsmanager_secret.db_user[{"${user.rds_cluster_identifier}_${user.username}"}].id
+  for_each            = { for user in local.sql_users_map : user.unique_name => user if user.rotation && var.deploy_password_rotation }
+  secret_id           = aws_secretsmanager_secret.db_user[each.value.unique_name].id
   rotation_lambda_arn = module.rds_password_rotation[0].arn
 
   rotation_rules {
