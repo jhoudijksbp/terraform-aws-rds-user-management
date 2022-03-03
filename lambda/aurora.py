@@ -352,7 +352,7 @@ class Aurora():
     def close_connection(self, connection):
         connection.close()
         
-    def get_connection(self, endpoint, port, iam_user, user, rds, rds_aurora):
+    def get_connection(self, endpoint, port, iam_user, secretArn, rds, rds_aurora):
         
         try:
             
@@ -382,20 +382,15 @@ class Aurora():
                 logger.info('Connection failed while using the IAM user!')
                 logger.info('Will try to connect with default master user')
                 
-                secretName = os.environ['SECRET_NAME'] 
                 secm       = boto3.client('secretsmanager')
-                secret     = secm.get_secret_value(SecretId=secretName)
+                secret     = secm.get_secret_value(SecretId=secretArn)
                 db_secret  = json.loads(secret['SecretString'])
                 
                 connection_master = connector.connect(host=endpoint,
                                                       user=db_secret['username'],
                                                       password=db_secret['password'],
                                                       port=port)
-                #print('drop user')                                      
-                #test = self.rds_drop_user(connection=connection_master, username=iam_user)
-                #print('user dropped...exiting now.')
-                #sys.exit(0)
-                                               
+          
                 logger.info('Connected with MySQL database')
                 result = rds_aurora.rds_create_iam_user(connection_master, iam_user)
                                                     

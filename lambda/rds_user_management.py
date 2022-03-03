@@ -14,7 +14,8 @@ from secrets_manager import SecretsManagerSecret
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-DEFAULT_SECRET_TYPE       = "RDS"
+DEFAULT_SECRET_TYPE        = "RDS"
+DEFAULT_MASTER_SECRET_TYPE = "MASTER_RDS"
 
 def main(event, context):
     
@@ -32,15 +33,14 @@ def main(event, context):
 
         logger.info(event)
         logger.info("Start managing RDS Aurora users")
-        
-        # Environment variables
-        master_username = os.environ['MASTER_USERNAME']
-        master_secret   = os.environ['SECRET_NAME'] 
 
         # initiate boto3 for SecretsManager and RDS
         client                 = boto3.client('secretsmanager')
         rdsb3                  = boto3.client('rds')
         secrets_manager        = SecretsManagerSecret(client)
+    
+        # Default master user secrets
+        masterSecrets = client.list_secrets(Filters=[{"Key": "tag-value", "Values": [DEFAULT_MASTER_SECRET_TYPE]}])
     
         # Load classes
         db = Aurora()
@@ -75,17 +75,27 @@ def main(event, context):
             
             logger.info(f"secretvalue successfully loaded: {privName}")
             
+            # Retrieve Master secet value
+            master_secret_arn = None    
+            for item in masterSecrets['SecretList']:
+                for tag in item['Tags']:
+                    if tag['Key'] == 'CL_IDENTIFIER' and tag['Value'] == db_secret['dbInstanceIdentifier']:
+                        master_secret_arn = item['ARN']
+
+            if master_secret_arn is None:
+                raise Exception(f"Could not retrieve master secret value for: {db_secret['dbInstanceIdentifier']}")
+            
             # Add privileges to the secret
             db_secret['privileges'] = db_privs['privileges']
             
             # Populate default IAM user which will be used by this Lambda
-            master_iam_user = (f"{master_username}_iam")
+            master_iam_user = "rds_user_mgmt_lambda_iam_user"
             
             # Get a connection with the RDS instance
             conn = db.get_connection(endpoint   = db_secret['host'], 
                                      port       = db_secret['port'], 
                                      iam_user   = master_iam_user, 
-                                     user       = master_username, 
+                                     secretArn = master_secret_arn,
                                      rds        = rdsb3,
                                      rds_aurora = db)
             
