@@ -2,7 +2,7 @@ locals {
   sql_users_map = flatten([
     for k, v in var.sql_users : {
       authentication         = v.authentication
-      privileges             = v.grants
+      privileges             = try(v.grants, "")
       rds_cluster_identifier = v.rds_cluster_identifier
       rds_endpoint           = v.rds_endpoint
       rds_port               = v.rds_port
