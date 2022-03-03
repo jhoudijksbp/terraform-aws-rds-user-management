@@ -7,6 +7,7 @@ locals {
       rds_endpoint           = v.rds_endpoint
       rds_port               = v.rds_port
       rotation               = try(v.rotation, false)
+      master_user            = try(v.master_user, false)
       src_host               = v.src_host
       username               = k
   }])
@@ -14,10 +15,18 @@ locals {
 
 # Create a secret for the user
 resource "aws_secretsmanager_secret" "db_user" {
-  for_each   = var.sql_users
-  name       = "db_user_${each.key}"
+  for_each   = { for user in local.sql_users_map : user.username => user if user.master_user == false }
+  name       = "db_user_${each.value.username}"
   kms_key_id = var.kms_key_id
   tags       = merge(var.tags, { "SECRET_TYPE" = "RDS" })
+}
+
+# Create a secret for the master user
+resource "aws_secretsmanager_secret" "db_master_user" {
+  for_each   = { for user in local.sql_users_map : user.username => user if user.master_user }
+  name       = "db_master_user_${each.value.username}"
+  kms_key_id = var.kms_key_id
+  tags       = merge(var.tags, { "SECRET_TYPE" = "MASTER_RDS" })
 }
 
 # Create a separate user for the user privileges
