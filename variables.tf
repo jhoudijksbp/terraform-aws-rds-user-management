@@ -22,16 +22,6 @@ variable "deploy_password_rotation" {
   description = "Deploy the Password rotation module"
 }
 
-variable "env_master_username" {
-  type        = string
-  description = "Default master username of RDS instances"
-}
-
-variable "env_secret_name" {
-  type        = string
-  description = "Secret in which the master user is saved"
-}
-
 variable "kms_key_id" {
   type        = string
   description = "ID of KMS key used for secrets"
