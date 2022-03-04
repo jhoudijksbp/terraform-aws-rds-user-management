@@ -10,7 +10,7 @@ locals {
       rotation               = try(v.rotation, false)
       master_user            = try(v.master_user, false)
       src_host               = try(v.src_host, "%")
-      unique_name            = replace("${v.rds_cluster_identifier}_${k}","-","_")
+      unique_name            = replace("${v.rds_cluster_identifier}_${try(v.username, k)}","-","_")
       username               = try(v.username, k)
   }])
 }
