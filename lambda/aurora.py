@@ -395,6 +395,8 @@ class Aurora():
                 result = rds_aurora.rds_create_iam_user(connection_master, iam_user)
                                                     
                 logger.info(f"User: {iam_user} created")
+
+                return connection_master
                 
         except BaseException as err:
             logger.error(err)
