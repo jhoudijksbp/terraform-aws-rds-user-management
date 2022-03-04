@@ -5,17 +5,18 @@ data "archive_file" "rds_user_management_lambda_arch" {
 }
 
 module "rds_user_management_lambda" {
-  source        = "github.com/schubergphilis/terraform-aws-mcaf-lambda?ref=v0.1.25"
-  name          = "rds_user_management_lambda"
-  create_policy = false
-  description   = "Lambda for managing users in RDS Aurora"
-  filename      = data.archive_file.rds_user_management_lambda_arch.output_path
-  handler       = "rds_user_management.main"
-  role_arn      = module.rds_user_management_lambda_role.arn
-  runtime       = "python3.8"
-  subnet_ids    = var.subnet_ids
-  timeout       = 60
-  tags          = var.tags
+  source           = "github.com/schubergphilis/terraform-aws-mcaf-lambda?ref=v0.1.25"
+  name             = "rds_user_management_lambda"
+  create_policy    = false
+  description      = "Lambda for managing users in RDS Aurora"
+  filename         = data.archive_file.rds_user_management_lambda_arch.output_path
+  handler          = "rds_user_management.main"
+  role_arn         = module.rds_user_management_lambda_role.arn
+  runtime          = "python3.8"
+  source_code_hash = data.archive_file.rds_user_management_lambda_arch.output_base64sha256
+  subnet_ids       = var.subnet_ids
+  timeout          = 60
+  tags             = var.tags
 
   providers = {
     aws.lambda = aws
