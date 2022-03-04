@@ -11,7 +11,7 @@ locals {
       master_user            = try(v.master_user, false)
       src_host               = try(v.src_host, "%")
       unique_name            = replace("${v.rds_cluster_identifier}_${k}","-","_")
-      username               = k
+      username               = try(v.username, k)
   }])
 }
 
