@@ -18,7 +18,7 @@ variable "create_vpc_secm_endpoint" {
 
 variable "deploy_password_rotation" {
   type        = bool
-  default     = false
+  default     = true
   description = "Deploy the Password rotation module"
 }
 
